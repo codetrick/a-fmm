@@ -23,22 +23,22 @@ d = layer([[a2, lamb/4], [substrate, wwout], [air, 300.0], [air, wwout], [a1, la
 e = layer([[a2, lamb/4], [substrate, wwout], [core, 300.0], [air, wwout], [a1, lamb/4]])
 
 geometry = stack([[a,200.0],[b,150.0],[c,150.0],[d,150.0],[e,200.0]][::-1])
-geometry.paint().show()
+#geometry.paint().show()
 o = 50
 waveguide = afmm(geometry, order=o, lambda0=lamb)
 waveguide.compute()
-#waveguide.inputmode([0]*o+[1.0]+[0]*o)
+waveguide.inputmode([0]*o+[1.0]+[0]*o)
 
 #print max(waveguide.modes(4).real)
-tm0 = np.argmin(waveguide.modes(4).real)
-print waveguide.modes(4)[tm0]
-waveguide.inputmode([0]*tm0 + [1.0] + [0]*(2*o-tm0))
-wg = waveguide
+#tm0 = np.argmin(waveguide.modes(4).real)
+#print waveguide.modes(4)[tm0]
+#waveguide.inputmode([0]*tm0 + [1.0] + [0]*(2*o-tm0))
+#wg = waveguide
 #R_in = np.dot(np.dot(wg.V[4],wg.d[4]).conjugate(), np.dot(wg.W[4],wg.d[4])).imag
 #R_re = np.dot(np.dot(wg.V[4],wg.u[4]).conjugate(), np.dot(wg.W[4],wg.u[4])).imag
 #print R_re/R_in
-print wg.u[4][tm0]
-waveguide.plotHy(649.9,200)
+#print wg.u[4][tm0]
+#waveguide.plotHy(649.9,200)
 #waveguide.plotinput()
 #waveguide.plotreflect()
 #waveguide.plotW(0)

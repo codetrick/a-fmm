@@ -47,19 +47,27 @@ class layer:
         self.xmesh = np.array(self.xmesh)
 
     def eps_xx(self, x):
-        n = self.xmesh.searchsorted(x,'right')-1
+        n = self.xmesh.searchsorted(x,side='right')-1
+        if n >= len(self.pieces):
+            n -= 1
         return self.pieces[n][0].eps_xx(x-self.xmesh[n])
 
     def eps_zz(self, x):
-        n = self.xmesh.searchsorted(x,'right')-1
+        n = self.xmesh.searchsorted(x,side='right')-1
+        if n >= len(self.pieces):
+            n -= 1
         return self.pieces[n][0].eps_zz(x-self.xmesh[n])
     
     def mu(self, x):
-        n = self.xmesh.searchsorted(x,'right')-1
+        n = self.xmesh.searchsorted(x,side='right')-1
+        if n >= len(self.pieces):
+            n -= 1
         return self.pieces[n][0].mu(x-self.xmesh[n])
 
     def color(self, x):
-        n = self.xmesh.searchsorted(x,'right')-1
+        n = self.xmesh.searchsorted(x,side='right')-1
+        if n >= len(self.pieces):
+            n -= 1
         return self.pieces[n][0].color(x-self.xmesh[n])
 
     def __add__(a, b):
@@ -117,9 +125,9 @@ class stack:
 class afmm:
     def __init__(self, stack, order=12, lambda0=600.0, eps0=1.0, mu0=1.0):
         self.stack = stack
-# width of slices
+        # width of slices
         self.w = stack.w
-# electric & magnetic susceptibility
+        # electric & magnetic susceptibility
         self.f_eps_xx = stack.f_eps_xx()
         self.f_eps_zz = stack.f_eps_zz()
         self.f_mu = stack.f_mu()
@@ -139,15 +147,16 @@ class afmm:
         
     def toeplitz(self, func, width, order):
         n = order*2+1
-# FFT convention, see numpy documentation
-        a = np.fft.fft([func(m*self.w/n) for m in range(n)])/n
+        # FFT convention, see numpy documentation
+        a = np.fft.fft([func(float(m)*width/n) for m in range(n)])/n
         a = np.concatenate((a, [a[0]]))
-        return sp.linalg.toeplitz(a[0:order+1], a[n+1:order:-1])
+        return sp.linalg.toeplitz(a[0:order+1], a[n:order:-1])
 
     def compute(self):
         k0 = self.k0
         w = self.w
         order = self.order
+        K = 2.0 * np.math.pi / w
         E = []
         A = []
         B = []
@@ -164,54 +173,32 @@ class afmm:
             E.append(self.toeplitz(self.f_eps_zz[i], w, order*2))
             A.append(self.toeplitz(lambda x: 1.0/self.f_eps_xx[i](x), w, order*2))
             B.append(self.toeplitz(self.f_mu[i], w, order*2))
-            Kx.append(np.diag(range(-order, order+1))*2.0*np.math.pi/w/k0)
+            Kx.append(np.diag(range(-order, order+1))*K/k0)
             S.append(np.dot(lg.inv(A[i]), np.subtract(np.dot(np.dot(Kx[i],lg.inv(E[i])),Kx[i]),B[i])))
             lam, ww = lg.eig(S[i])
             Lamb.append(np.sqrt(lam))
             for j in range(order*2+1):
-                if Lamb[i][j].imag>0 and abs(Lamb[i][j].real)<abs(Lamb[i][j].imag):
-                    #print 'Lamb neg ', i, ' is ', Lamb[i][j]
+                if Lamb[i][j].real-Lamb[i][j].imag < 0:
                     Lamb[i][j] = -Lamb[i][j]
             W.append(ww)
             V.append(np.dot(np.dot(A[i],W[i]),np.diag(Lamb[i])))
-        #    print 'Lamb=',Lamb[i]
-           # print np.divide(np.dot(S[i], ww), np.dot(ww, np.diag(lam)))
-           # print 'S_',i, '=', S[i]
-           # print 'ok'
-
-        #print 'E=',E
-        #print 'A=',A
-        #print 'B=',B
-        #print 'Kx',Kx
 
         for i in range(len(self.thick)-1):
             X = np.diag(np.exp(np.negative(Lamb[i]*self.thick[i])*k0))
             self.X.append(X)
-        #    print 'X_',i,'=', X
-            #print 'Lambda_',i,'=', Lamb[i]
-            #print 'W_',i,'=', W[i]
             wwvv_inv = lg.inv(np.add(np.dot(lg.inv(W[i]),W[i+1]),np.dot(lg.inv(V[i]),V[i+1])))
             t_uu = 2*np.dot(wwvv_inv, X)
             r_ud = np.dot( wwvv_inv, \
                            np.subtract(np.dot(lg.inv(V[i]),V[i+1]), np.dot(lg.inv(W[i]),W[i+1])))
             vvww_inv = lg.inv(np.add(np.dot(lg.inv(W[i+1]),W[i]),np.dot(lg.inv(V[i+1]),V[i])) )
-        #    print 'vvww_inv=', vvww_inv
             r_du = np.dot(np.dot(X, np.dot( vvww_inv, \
                            np.subtract(np.dot(lg.inv(V[i+1]),V[i]),np.dot(lg.inv(W[i+1]),W[i])) )), X)
             t_dd = 2*np.dot(X, vvww_inv)
-        #    print 't_dd',i,'=',t_dd
-        #    print 'r_du',i,'=',r_du
-        #    print 'r_ud',i,'=',r_ud
-        #    print 't_uu',i,'=',t_uu
             if i==0:
                 R_ud.append(r_ud)
                 T_dd.append(t_dd)
                 continue
-            #RT_inv = lg.inv(np.add(np.identity(2*order+1),np.negative(np.dot(r_du,R_ud[i-1]))))
-            RT_inv = np.subtract(np.identity(2*order+1),np.dot(r_du,R_ud[i-1]))
-        #    print 'RT=', RT_inv
-            RT_inv = lg.inv(RT_inv)
-        #    print 'RT_inv=', RT_inv
+            RT_inv = lg.inv(np.subtract(np.identity(2*order+1),np.dot(r_du,R_ud[i-1])))
             R_ud.append(np.add(r_ud ,np.dot(np.dot(np.dot(t_uu, R_ud[i-1]), RT_inv), t_dd)))
             T_dd.append(np.dot(np.dot(T_dd[i-1],RT_inv), t_dd))
 
