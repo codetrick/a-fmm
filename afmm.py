@@ -168,8 +168,12 @@ class afmm:
         R_ud = []
         T_dd = []
         self.X = []
+        print "Calculation initiated"
+        print "Total number of layers: ", len(self.thick)
 
+        print "Solving eigenvalue problem in each layer"
         for i in range(len(self.thick)):
+            print "    Layer ", i
             E.append(self.toeplitz(self.f_eps_zz[i], w, order*2))
             A.append(self.toeplitz(lambda x: 1.0/self.f_eps_xx[i](x), w, order*2))
             B.append(self.toeplitz(self.f_mu[i], w, order*2))
@@ -183,7 +187,9 @@ class afmm:
             W.append(ww)
             V.append(np.dot(np.dot(A[i],W[i]),np.diag(Lamb[i])))
 
+        print "Constructing S-matrixes"
         for i in range(len(self.thick)-1):
+            print "    Layer ", i
             X = np.diag(np.exp(np.negative(Lamb[i]*self.thick[i])*k0))
             self.X.append(X)
             wwvv_inv = lg.inv(np.add(np.dot(lg.inv(W[i]),W[i+1]),np.dot(lg.inv(V[i]),V[i+1])))
@@ -209,18 +215,42 @@ class afmm:
         self.T_dd = T_dd
 
     def inputmode(self, d_in):
+        # parameters already calculated
+        W = self.W
+        V = self.V
+        Lamb = self.Lamb
+        R_ud = self.R_ud
+        T_dd = self.T_dd
+        thick = self.thick
+        k0 = self.k0
+        order = self.order
+        # d[] and n[] vectors with their upside counterparts
+        print "Associating solution vectors"
         n = len(self.thick)
         d = [None] * n
+        d_h = [None] * n
         u = [None] * n
+        u_h = [None] * n
+        print "    Layer ", n-1
         d[n-1] = d_in
-        u[0] = np.array([0.0]*(self.order*2+1))
-        d[0] = np.dot(self.T_dd[n-2], d[n-1])
-        u[n-1] = np.dot(self.R_ud[n-2], d[n-1])
-        for i in range(n-2):
-            d[i+1] = np.dot(lg.inv(self.T_dd[i]), d[0])
-            u[i+1] = np.dot(self.R_ud[i], d[i+1])
+        d_h[n-1] = np.multiply(d[n-1], np.exp(k0*Lamb[n-1]*thick[n-1]))
+        u[0] = np.array([0.0]*(order*2+1))
+        d[0] = np.dot(T_dd[n-2], d[n-1])
+        u[n-1] = np.dot(R_ud[n-2], d[n-1])
+        u_h[n-1] = np.multiply(u[n-1], np.exp(-k0*Lamb[0]*thick[0]))
+        for i in range(n-2, 0, -1):
+            print "    Layer ", i
+            d_h[i] = 0.5*np.subtract(np.dot(np.dot(lg.inv(W[i]),W[i+1]),np.add(u[i+1],d[i+1])),np.dot(np.dot(lg.inv(V[i]),V[i+1]),np.subtract(u[i+1],d[i+1])))
+            d[i] = np.multiply(d_h[i], np.exp(-k0*Lamb[i]*thick[i]))
+            u[i] = np.dot(R_ud[i-1],d[i])
+            u_h[i] = np.multiply(u[i], np.exp(-k0*Lamb[i]*thick[i]))
+        print "    Layer ", 0
+        d_h[0] = 0.5*np.subtract(np.dot(np.dot(lg.inv(W[0]),W[1]),np.add(u[1],d[1])),np.dot(np.dot(lg.inv(V[0]),V[1]),np.subtract(u[1],d[1])))
+        u_h[0] = np.array([0.0]*(order*2+1))
         self.d = d
+        self.d_h = d_h
         self.u = u
+        self.u_h = u_h
 
     def input(self, Hy):
         pass
@@ -231,60 +261,85 @@ class afmm:
     def Hy(self, x, z):
         n = self.zmesh.searchsorted(z,'right')-1
         zz = self.zmesh[n]
-        #print 'n=',n
-        #print 'zz=', zz
-        #print 'z=', z
-        #print 'd=',self.d[n]
+        zz_h = self.zmesh[n+1]
         exp_u = np.multiply(self.u[n], np.exp(self.Lamb[n]*(zz-z)*self.k0))
-        exp_d = np.multiply(self.d[n], np.exp(self.Lamb[n]*(z-zz)*self.k0))
-        #print 'exp_d=', exp_d
+        exp_d = np.multiply(self.d_h[n], np.exp(self.Lamb[n]*(z-zz_h)*self.k0))
         U = np.dot(self.W[n], np.add(exp_u, exp_d))
-        #print 'U=', U
         hy = np.dot(U, np.exp(np.arange(-self.order, self.order+1)*x*1J*self.K))
         return hy
 
-    def plotHy(self, z, frac=200):
+    def plotHy_xz(self, frac=200):
+        fracz = int(sum(self.thick)/(self.w/frac))
+        delta_z = sum(self.thick)/fracz
+        px = [i*1.0*self.w/frac for i in range(frac)]
+        img = []
+        for i in range(fracz):
+            z = delta_z*i
+            img.append([self.Hy(px[i],z).real for i in range(frac)])
+        plt.imshow(img[::-1],extent=(0, self.w*(frac-1)/frac, 0, sum(self.thick)*(fracz-1)/fracz), aspect='auto')
+        plt.colorbar()
+        plt.show()
+
+    def plotHy_z(self, z, frac=800):
         x = [i*1.0*self.w/frac for i in range(frac)]
         y = [None]*frac
         for i in range(frac):
-            y[i] = self.Hy(x[i], z)
+            y[i] = self.Hy(x[i], z).real
         plt.plot(x, y)
         plt.show()
 
-    def plotinput(self, frac=200):
+    def plotinput(self, frac=800): # incident Hy field
         x = [i*1.0*self.w/frac for i in range(frac)]
         y = [None]*frac
         n = len(self.thick)-1
         for i in range(frac):
-            y[i] = np.dot(np.dot(self.W[n], self.d[n]), np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K))
+            y[i] = np.dot(np.dot(self.W[n], self.d[n]), np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K)).real
         plt.plot(x, y)
         plt.show()
 
-    def plotreflect(self, frac=200):
+    def plotreflect(self, frac=800): # reflected Hy field
         x = [i*1.0*self.w/frac for i in range(frac)]
         y = [None]*frac
         n = len(self.thick)-1
         for i in range(frac):
-            y[i] = np.dot(np.dot(self.W[n], self.u[n]), np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K))
+            y[i] = np.dot(np.dot(self.W[n], self.u[n]), np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K)).real
         plt.plot(x, y)
         plt.show()
 
-    def plotW(self, order, frac=200):
+    def plotW(self, order, frac=800): # eigenfunction of Hy in the upmost layer
         x = [i*1.0*self.w/frac for i in range(frac)]
         y = [None]*frac
         n = len(self.thick)-1
         for i in range(frac):
-            y[i] = np.dot(np.array(self.W[n])[:,order], np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K))
+            y[i] = np.dot(np.array(self.W[n])[:,order], np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K)).real
+        plt.plot(x, y)
+        plt.show()
+
+    def plotV(self, order, frac=800): # eigenfunction of Ex in the upmost layer
+        x = [i*1.0*self.w/frac for i in range(frac)]
+        y = [None]*frac
+        n = len(self.thick)-1
+        for i in range(frac):
+            y[i] = np.dot(np.array(self.V[n])[:,order], np.exp(np.arange(-self.order, self.order+1)*x[i]*1J*self.K)).real
         plt.plot(x, y)
         plt.show()
 
     def Ex(self, x, z):
         n = self.zmesh.searchsorted(z, 'right')-1
         zz = self.zmesh[n]
+        zz_h = self.zmesh[n+1]
         exp_u = np.multiply(self.u[n], np.exp(self.Lamb[n]*(zz-z)*self.k0))
-        exp_d = np.multiply(self.d[n], np.exp(self.Lamb[n]*(z-zz)*self.k0))
+        exp_d = np.multiply(self.d_h[n], np.exp(self.Lamb[n]*(z-zz_h)*self.k0))
         S = np.dot(self.V[n], np.subtract(exp_u, exp_d))
         ex = np.dot(S, np.exp(np.arange(-self.order, self.order+1)*x*1J*self.K))
         ex = ex * 1.0j * np.sqrt(self.mu0/self.eps0)
         return ex
+
+    def plotEx(self, z, frac=800):
+        x = [i*1.0*self.w/frac for i in range(frac)]
+        y = [None]*frac
+        for i in range(frac):
+            y[i] = self.Ex(x[i], z).real
+        plt.plot(x, y)
+        plt.show()
 

@@ -25,13 +25,13 @@ c = layer([[a2, lamb/4], [substrate, wwout], [core, 300.0], [air, wwout], [a1, l
 d = layer([[a2, lamb/4], [substrate, wwout], [air, 300.0], [air, wwout], [a1, lamb/4]])
 e = layer([[a2, lamb/4], [substrate, wwout], [core, 300.0], [air, wwout], [a1, lamb/4]])
 
-geometry = stack([[a,200.0],[b,150.0],[c,150.0],[d,150.0],[e,200.0]][::-1])
-geometry.paint().show()
+geometry = stack([[a,1000.0],[c,1000.0]][::-1])
+#geometry.paint().show()
 o = 50
 waveguide = afmm(geometry, order=o, lambda0=lamb)
 waveguide.compute()
-lamb_fundTM0=min(waveguide.modes(4),key=lambda x: x.real)
-n_fundTM0=list(waveguide.modes(4)).index(lamb_fundTM0)
+lamb_fundTM0=min(waveguide.modes(1),key=lambda x: x.real)
+n_fundTM0=list(waveguide.modes(1)).index(lamb_fundTM0)
 waveguide.inputmode([0]*n_fundTM0+[1.0]+[0]*(2*o-n_fundTM0))
 waveguide.plotinput()
 #waveguide.plotreflect()
@@ -40,7 +40,7 @@ waveguide.plotHy_xz()
 #waveguide.plotHy_z(651)
 #waveguide.plotHy_z(653)
 #waveguide.plotHy_z(501)
-print abs(waveguide.u[4][n_fundTM0])**2
+print abs(waveguide.u[1][n_fundTM0])**2
 
 #wg = waveguide
 #print np.dot(wg.W[1], np.add(np.dot(wg.X[1], wg.u[1]), np.dot(lg.inv(wg.X[1]), wg.d[1])))
