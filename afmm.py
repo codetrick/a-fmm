@@ -1,5 +1,5 @@
 #! /usr/bin/env python2
-# Aperiodic Fourier Modal Method written by Fan Yang
+# Aperiodic Fourier Modal Method code written by Fan Yang
 
 import numpy as np
 import scipy as sp
@@ -33,6 +33,15 @@ class material:
         else:
             self.color = lambda x: ImageColor.getrgb(color)
 
+class pml(material):
+    def __init__(self, mat, f, f_pml):
+        self.f_pml = f_pml
+        self.f = f
+        self.eps_xx = lambda x: mat.eps_xx(x)*f_pml
+        self.eps_zz = lambda x: mat.eps_zz(x)/f_pml
+        self.mu = lambda x: mat.mu(x)/f_pml
+        self.color = mat.color
+
 class layer:
     def __init__(self, pieces): # pieces = [ [material, width], ... ]
         self.pieces = pieces
@@ -64,6 +73,15 @@ class layer:
             n -= 1
         return self.pieces[n][0].mu(x-self.xmesh[n])
 
+    def f(self, x):
+        n = self.xmesh.searchsorted(x,side='right')-1
+        if n >= len(self.pieces):
+            n -= 1
+        if isinstance(self.pieces[n][0],pml):
+            return self.pieces[n][0].f(x-self.xmesh[n])
+        else:
+            return 1.0
+
     def color(self, x):
         n = self.xmesh.searchsorted(x,side='right')-1
         if n >= len(self.pieces):
@@ -88,6 +106,9 @@ class stack:
 
     def f_eps_zz(self):
         return [layer.eps_zz for layer in self.layers]
+
+    def f_f(self):
+        return [layer.f for layer in self.layers]
 
     def getcolor(self, n_layer, x):
         return self.layers[n_layer].color(x)
@@ -131,6 +152,7 @@ class afmm:
         self.f_eps_xx = stack.f_eps_xx()
         self.f_eps_zz = stack.f_eps_zz()
         self.f_mu = stack.f_mu()
+        self.f_f = stack.f_f()
         self.thick = stack.thick
         self.lambda0 = lambda0
         self.order = order
@@ -164,6 +186,7 @@ class afmm:
         S = []
         W = []
         V = []
+        Fx = []
         Lamb = []
         R_ud = []
         T_dd = []
@@ -177,8 +200,9 @@ class afmm:
             E.append(self.toeplitz(self.f_eps_zz[i], w, order*2))
             A.append(self.toeplitz(lambda x: 1.0/self.f_eps_xx[i](x), w, order*2))
             B.append(self.toeplitz(self.f_mu[i], w, order*2))
+            Fx.append(self.toeplitz(self.f_f[i], w , order*2))
             Kx.append(np.diag(range(-order, order+1))*K/k0)
-            S.append(np.dot(lg.inv(A[i]), np.subtract(np.dot(np.dot(Kx[i],lg.inv(E[i])),Kx[i]),B[i])))
+            S.append(np.dot(lg.inv(A[i]), np.subtract(np.dot(np.dot(np.dot(Fx[i],Kx[i]),lg.inv(E[i])),np.dot(Fx[i],Kx[i])),B[i])))
             lam, ww = lg.eig(S[i])
             Lamb.append(np.sqrt(lam))
             for j in range(order*2+1):

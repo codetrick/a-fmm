@@ -1,3 +1,4 @@
+#! /usr/bin/env python2
 from afmm import *
 
 def lin(left, right, width):
