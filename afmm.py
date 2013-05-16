@@ -40,7 +40,8 @@ class pml(material):
         self.eps_xx = lambda x: mat.eps_xx(x)*f_pml
         self.eps_zz = lambda x: mat.eps_zz(x)/f_pml
         self.mu = lambda x: mat.mu(x)/f_pml
-        self.color = mat.color
+        #self.color = mat.color
+        self.color = 'black'
 
 class layer:
     def __init__(self, pieces): # pieces = [ [material, width], ... ]
@@ -234,6 +235,7 @@ class afmm:
 
         self.W = W
         self.V = V
+        self.Kx = Kx
         self.Lamb = Lamb
         self.R_ud = R_ud
         self.T_dd = T_dd
@@ -276,8 +278,20 @@ class afmm:
         self.u = u
         self.u_h = u_h
 
-    def input(self, Hy):
-        pass
+    def inputfunc(self, funcHy):
+        order = self.order
+        k = len(self.thick)
+        n = self.order*2+1
+        k0 = self.k0
+        Lamb = self.Lamb
+        thick = self.thick
+        width = self.w
+        # FFT convention, see numpy documentation
+        a = np.fft.fft([funcHy(float(m)*width/n) for m in range(n)])/n
+        a = np.concatenate((a[order+1:n+1],a[0:order+1]))
+        d_h = np.dot(lg.inv(self.W[k-1]),a)
+        d = np.multiply(d_h, np.exp(-k0*Lamb[k-1]*thick[k-1]))
+        self.inputmode(d)
 
     def modes(self, n):
         return self.Lamb[n]
@@ -292,7 +306,7 @@ class afmm:
         hy = np.dot(U, np.exp(np.arange(-self.order, self.order+1)*x*1J*self.K))
         return hy
 
-    def plotHy_xz(self, frac=200):
+    def plotHy_xz(self, frac=200): # 2D intensity plot of Hy(x,z)
         fracz = int(sum(self.thick)/(self.w/frac))
         delta_z = sum(self.thick)/fracz
         px = [i*1.0*self.w/frac for i in range(frac)]
@@ -300,11 +314,11 @@ class afmm:
         for i in range(fracz):
             z = delta_z*i
             img.append([self.Hy(px[i],z).real for i in range(frac)])
-        plt.imshow(img[::-1],extent=(0, self.w*(frac-1)/frac, 0, sum(self.thick)*(fracz-1)/fracz), aspect='auto')
+        plt.imshow(img[::-1],extent=(0, self.w*(frac-1)/frac, 0, sum(self.thick)*(fracz-1)/fracz))
         plt.colorbar()
         plt.show()
 
-    def plotHy_z(self, z, frac=800):
+    def plotHy_z(self, z, frac=800): # 1D plot of Hy(z)
         x = [i*1.0*self.w/frac for i in range(frac)]
         y = [None]*frac
         for i in range(frac):
@@ -367,3 +381,13 @@ class afmm:
         plt.plot(x, y)
         plt.show()
 
+    def Ez(self, x, z):
+        n = self.zmesh.searchsorted(z,'right')-1
+        zz = self.zmesh[n]
+        zz_h = self.zmesh[n+1]
+        exp_u = np.multiply(self.u[n], np.exp(self.Lamb[n]*(zz-z)*self.k0))
+        exp_d = np.multiply(self.d_h[n], np.exp(self.Lamb[n]*(z-zz_h)*self.k0))
+        U = np.dot(self.W[n], np.add(exp_u, exp_d))
+        ez = np.dot(np.dot(self.Kx[n], U), np.exp(np.arange(-self.order, self.order+1)*x*1J*self.K))
+        ez = ez * np.sqrt(self.mu0/self.eps0)/self.f_eps_zz[n](x)
+        return ez

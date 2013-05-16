@@ -26,13 +26,13 @@ def fl(gamma, qq):
     return lambda x: (1.0-gamma*np.sin(np.pi*(qq-x)/q)**2)*np.cos(np.pi*x/q)**2
 
 gamma = 1.0/(1.0-1.0j)
-a1 = pml(air,fr(gamma,lamb/4), 0.5)
-a2 = pml(substrate,fl(gamma,lamb/4), 0.5)
+kk = 500.0
+a1 = pml(air,fr(gamma,kk), 0.5)
+a2 = pml(substrate,fl(gamma,kk), 0.5)
 
 # convention: a+bj for absorbing
 #w = 1.0
 wwout = 700.0
-kk = 500.0
 a = layer([[a2, kk], [substrate, wwout], [core, 300.0], [air, wwout], [a1, kk]])
 b = layer([[a2, kk], [substrate, wwout], [air, 300.0], [air, wwout], [a1, kk]])
 c = layer([[a2, kk], [substrate, wwout], [core, 300.0], [air, wwout], [a1, kk]])
