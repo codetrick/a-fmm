@@ -3,11 +3,10 @@
 
 import numpy as np
 import scipy as sp
-import scipy.linalg 
+import scipy.linalg
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
-import Image
-import ImageColor
+from PIL import Image, ImageColor
 
 class material:
     def __init__(self, eps_xx, eps_zz=None, mu=1.0, color='white', name=None):
@@ -67,7 +66,7 @@ class layer:
         if n >= len(self.pieces):
             n -= 1
         return self.pieces[n][0].eps_zz(x-self.xmesh[n])
-    
+
     def mu(self, x):
         n = self.xmesh.searchsorted(x,side='right')-1
         if n >= len(self.pieces):
@@ -167,7 +166,7 @@ class afmm:
             z += h
             zmesh += [z]
         self.zmesh = np.array(zmesh)
-        
+
     def toeplitz(self, func, width, order):
         n = order*2+1
         # FFT convention, see numpy documentation

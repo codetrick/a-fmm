@@ -1,4 +1,6 @@
 #! /usr/bin/env python2
+import sys
+sys.path.insert(0, '..')
 from afmm import *
 
 def lin(left, right, width):

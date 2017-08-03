@@ -1,7 +1,7 @@
 #! /usr/bin/env python2
 import numpy as np
 import scipy as sp
-import scipy.linalg 
+import scipy.linalg
 import numpy.linalg as lg
 import matplotlib.pyplot as plt
 
