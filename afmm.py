@@ -40,7 +40,7 @@ class pml(material):
         self.eps_zz = lambda x: mat.eps_zz(x)/f_pml
         self.mu = lambda x: mat.mu(x)/f_pml
         #self.color = mat.color
-        self.color = 'black'
+        self.color = lambda x: ImageColor.getrgb('black')
 
 class layer:
     def __init__(self, pieces): # pieces = [ [material, width], ... ]
@@ -118,7 +118,7 @@ class stack:
         H = self.h
         # default resolution
         if d == None:
-            d = self.w/100.0
+            d = self.w/300.0 # pixel size
         slices = self.thick
         ymesh = []
         y = 0
@@ -127,7 +127,7 @@ class stack:
             ymesh += [y]
         ymesh = np.array(ymesh)
         ny = int(ymesh[-1] / float(d)) - 1
-        nx = int(T/float(d)) -1 
+        nx = int(T/float(d)) - 1
         data = np.zeros([nx,ny,3], dtype = np.uint8)
         y = d
         for i in range(ny):

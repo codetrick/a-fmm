@@ -41,7 +41,7 @@ b = layer([[a2l, kk], [substrate, w*lamb], [air, (0.25+0.187)*lamb], [substrate,
 c = layer([[a2l, kk], [substrate, (2*w+0.25)*lamb], [a2r, kk]])
 
 geometry = stack([[a,4*lamb],[b,0.125*lamb],[c,2*lamb]][::-1])
-#geometry.paint().show()
+geometry.paint().show()
 o = 50
 waveguide = afmm(geometry, order=o, lambda0=lamb)
 waveguide.compute()
